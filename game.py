@@ -28,7 +28,7 @@ def submit_guess():
         print("LOSE", correct_word)
         end_game(win=False)
         return
-    
+
     current_row += 1
 
 def end_game(win):
@@ -37,6 +37,26 @@ def end_game(win):
     else:
         print("Out of guesses")
     reset_game()
+
+def feedback(guess, answer):
+    guess = guess.upper()
+    answer = answer.upper()
+
+    result = ['gray']*len(guess)
+    answer_chars = list(answer)
+
+    for i in range(len(guess)):
+        if guess[i] == answer[i]:
+            result[i] = "green"
+            answer_chars[i] = None
+
+    for i in range(len(guess)):
+        if result[i] == "green":
+            continue
+        if guess[i] in answer_chars:
+            result[i] = "yellow"
+            answer_chars[answer_chars.index(guess[i])] = None
+    return result
 
 def reset_game():
     global current_row, correct_word
@@ -86,6 +106,7 @@ for row in range(Rows):
 answer_label = tk.Label(root, text=f"Correct word: {correct_word}", font=("Aerial", 12))
 answer_label.grid(row=Rows +1, column=0, columnspan=Columns, pady=10)
 
+#print(feedback("APPLE", "ALERT"))
 root.bind("<Return>", lambda event: submit_guess())
 root.mainloop()
 
