@@ -1,13 +1,3 @@
-import pandas as pd
-import random
-
-df = pd.read_csv('wordle.csv')
-df.drop(['occurrence', 'day'], axis=1, inplace=True)
-#print(df)
-
-correct_word = df['word'].str.upper().tolist()
-#correct_word = df['word'].sample(1).iloc[0].upper()
-
 current_row = 0
 
 def feedback(guess, answer):

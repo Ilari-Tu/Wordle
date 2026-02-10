@@ -1,12 +1,11 @@
+from game_logic import feedback
+from data import wordlist
+from heuristics import random_strategy
+
 import tkinter as tk
-import pandas as pd
 import random
 
-df = pd.read_csv('wordle.csv')
-df.drop(['occurrence', 'day'], axis=1, inplace=True)
-#print(df)
-
-correct_word = df['word'].sample(1).iloc[0].upper()
+answer = random.choice(wordlist)
 
 current_row = 0
 
@@ -19,15 +18,20 @@ def submit_guess():
         print("Incomplete or invalid guess")
         return
     
-    if guess == correct_word:
+    if guess == answer:
         print("WIN", guess)
         end_game(win=True)
         return
     
     if current_row == Rows -1:
-        print("LOSE", correct_word)
+        print("LOSE", answer)
         end_game(win=False)
         return
+
+    colors = feedback(guess, answer)
+
+    for col in range(Columns):
+        cells[current_row][col].config(bg=colors[col])
 
     current_row += 1
 
@@ -38,6 +42,7 @@ def end_game(win):
         print("Out of guesses")
     reset_game()
 
+"""
 def feedback(guess, answer):
     guess = guess.upper()
     answer = answer.upper()
@@ -57,9 +62,9 @@ def feedback(guess, answer):
             result[i] = "yellow"
             answer_chars[answer_chars.index(guess[i])] = None
     return result
-
+"""
 def reset_game():
-    global current_row, correct_word
+    global current_row, answer
     current_row = 0
 
     # Clear all cells
@@ -69,8 +74,8 @@ def reset_game():
             cells[r][c].config(bg="white")
 
     # Pick a new word
-    correct_word = df['word'].sample(1).iloc[0].upper()
-    answer_label.config(text=f"Correct word (debug): {correct_word}")
+    answer = random.choice(wordlist)
+    answer_label.config(text=f"Correct word (debug): {answer}")
 
 
 def validate_input(new_value, char):
@@ -103,9 +108,54 @@ for row in range(Rows):
         entry.grid(row=row, column=col, padx=2, pady=2)
         cells[row][col] = entry
 
-answer_label = tk.Label(root, text=f"Correct word: {correct_word}", font=("Aerial", 12))
+answer_label = tk.Label(root, text=f"Correct word: {answer}", font=("Aerial", 12))
 answer_label.grid(row=Rows +1, column=0, columnspan=Columns, pady=10)
 
+def play_guess(guess):
+    global current_row
+
+    for col, letter in enumerate(guess):
+        cells[current_row][col].delete(0, tk.END)
+        cells[current_row][col].insert(0, letter)
+
+    colors = feedback(guess, answer)
+
+    for col in range(Columns):
+        cells[current_row][col].config(bg=colors[col])
+
+    if guess == answer:
+        print("WIN", guess)
+        end_game(win=True)
+        return True
+    
+    if current_row == Rows-1:
+        print("LOSE", answer)
+        end_game(win=False)
+        return True
+    
+    current_row += 1
+    return False
+
+def auto_play(strategy):
+    candidates = wordlist.copy()
+
+    def step():
+        nonlocal candidates
+
+        guess = strategy(candidates)
+        done = play_guess(guess)
+
+        if done:
+            return
+        
+        fb = feedback(guess, answer)
+        candidates = [w for w in candidates if feedback(guess, w) == fb]
+
+        root.after(700, step)
+    
+    step()
+
+auto_play(random_strategy)
 #print(feedback("APPLE", "ALERT"))
 root.bind("<Return>", lambda event: submit_guess())
 root.mainloop()
