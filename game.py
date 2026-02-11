@@ -1,6 +1,6 @@
 from game_logic import feedback
 from data import wordlist
-from heuristics import random_strategy
+import heuristics as h
 
 import tkinter as tk
 import random
@@ -8,6 +8,10 @@ import random
 answer = random.choice(wordlist)
 
 current_row = 0
+simulation_target = 0
+simulation_count = 0
+current_start_word = None
+stats = {}
 
 def submit_guess():
     global current_row
@@ -21,12 +25,12 @@ def submit_guess():
     if guess == answer:
         print("WIN", guess)
         end_game(win=True)
-        return
+        return "win"
     
     if current_row == Rows -1:
         print("LOSE", answer)
         end_game(win=False)
-        return
+        return "loss"
 
     colors = feedback(guess, answer)
 
@@ -34,6 +38,7 @@ def submit_guess():
         cells[current_row][col].config(bg=colors[col])
 
     current_row += 1
+    return False
 
 def end_game(win):
     if win:
@@ -42,27 +47,6 @@ def end_game(win):
         print("Out of guesses")
     reset_game()
 
-"""
-def feedback(guess, answer):
-    guess = guess.upper()
-    answer = answer.upper()
-
-    result = ['gray']*len(guess)
-    answer_chars = list(answer)
-
-    for i in range(len(guess)):
-        if guess[i] == answer[i]:
-            result[i] = "green"
-            answer_chars[i] = None
-
-    for i in range(len(guess)):
-        if result[i] == "green":
-            continue
-        if guess[i] in answer_chars:
-            result[i] = "yellow"
-            answer_chars[answer_chars.index(guess[i])] = None
-    return result
-"""
 def reset_game():
     global current_row, answer
     current_row = 0
@@ -136,26 +120,82 @@ def play_guess(guess):
     current_row += 1
     return False
 
-def auto_play(strategy):
+def auto_play(strategy, start_word=None):
     candidates = wordlist.copy()
+    first_move = True
 
     def step():
-        nonlocal candidates
+        nonlocal candidates, first_move
+        global simulation_count
 
-        guess = strategy(candidates)
-        done = play_guess(guess)
+        # --- Choose guess ---
+        if first_move and start_word is not None:
+            guess = start_word
+        else:
+            guess = strategy(candidates)
 
-        if done:
-            return
-        
+        result = play_guess(guess)
         fb = feedback(guess, answer)
-        candidates = [w for w in candidates if feedback(guess, w) == fb]
 
-        root.after(700, step)
-    
+        # --- Track first-guess colors ---
+        if first_move:
+            for color in fb:
+                if color == "green":
+                    stats[current_start_word]["greens"] += 1
+                elif color == "yellow":
+                    stats[current_start_word]["yellows"] += 1
+                else:
+                    stats[current_start_word]["grays"] += 1
+            first_move = False
+
+        # --- Reduce candidates ---
+        candidates = [w for w in candidates if feedback(guess, w) == fb]
+        #print("Candidates left:", len(candidates))
+
+        # --- Handle end-of-game ---
+        if result in ("win", "loss"):
+            stats[current_start_word]['games'] += 1
+            if result == "win":
+                stats[current_start_word]['wins'] += 1
+            stats[current_start_word]['total_turns'] += current_row
+            simulation_count += 1
+
+            if simulation_count >= simulation_target:
+                print("Finished simulations")
+                print(stats[current_start_word])
+                return
+
+            reset_game()
+            root.after(100, lambda: auto_play(strategy, current_start_word))
+            return  # important!
+
+        # --- Continue same game ---
+        root.after(100, step)
+
     step()
 
-auto_play(random_strategy)
+
+def run_simulations(start_word, n_games, strategy):
+    global simulation_target, simulation_count, current_start_word, stats
+
+    simulation_target = n_games
+    simulation_count = 0
+    current_start_word = start_word
+
+    stats[start_word] = {
+        "games": 0,
+        "wins": 0,
+        "total_turns": 0,
+        "greens": 0,
+        "yellows": 0,
+        "grays": 0
+    }
+
+
+    auto_play(strategy, start_word=start_word)
+
+root.after(100, lambda: run_simulations("SLATE", 10, h.entropy))
+#auto_play(h.entropy)
 #print(feedback("APPLE", "ALERT"))
 root.bind("<Return>", lambda event: submit_guess())
 root.mainloop()
